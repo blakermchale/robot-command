@@ -1,0 +1,7 @@
+float64 radius
+float64 height
+string target_frame
+builtin_interfaces/Duration run_time
+---
+---
+builtin_interfaces/Duration time
