@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy import Node
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.time import Time
 from rclpy.action import ActionServer
 from tf2_ros import TransformListener, Buffer
@@ -50,3 +51,14 @@ class Commander(Node):
             except Exception as e: #possibly tf2.LookupException or tf2.ExtrapolationException
                 self.get_logger().error(f"{str(e)}", throttle_duration_sec=1.0)
                 continue
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    commander = Commander()
+    executor = MultiThreadedExecutor()
+    rclpy.spin(commander, executor)
+
+
+if __name__=="__main__":
+    main()
