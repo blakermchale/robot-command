@@ -24,6 +24,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            f'commander = {package_name}.commander:main',
+            f'tf_processor = {package_name}.tf_processor:main',
+            f'shell = {package_name}.cli.shell:main',
         ],
     },
 )
