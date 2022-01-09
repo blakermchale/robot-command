@@ -37,23 +37,23 @@ class CommanderClient(Node):
         self._executor.add_node(self)
 
     def send_follow_tf(self, distance: float, height: float, approach_angle: float, target_frame: str, run_time: float):
-        self.reset()
-        if not self._cli_follow_tf.wait_for_server(timeout_sec=self._timeout_sec):
-            self.get_logger().error("No action server available")
-            return
-        sec = np.floor(run_time)
-        nanosec = (run_time - sec)*10**9
-        goal = FollowTf.Goal(distance=distance, height=height, approach_angle=approach_angle, target_frame=target_frame, run_time=Duration(sec=int(sec), nanosec=int(nanosec)))
-        self.get_logger().info("Sending goal to `follow_tf`")
-        future = self._cli_follow_tf.send_goal_async(goal, feedback_callback=self._feedback_follow_tf)
-        future.add_done_callback(functools.partial(self._action_response, "follow_tf"))
-        return future
-        # @setup_send_action(self, self._cli_follow_tf, self._feedback_follow_tf)
-        # def send_action():
-        #     sec = np.floor(run_time)
-        #     nanosec = (run_time - sec)*10**9
-        #     return FollowTf.Goal(distance=distance, height=height, approach_angle=approach_angle, target_frame=target_frame, run_time=Duration(sec=int(sec), nanosec=int(nanosec)))
-        # return send_action
+        # self.reset()
+        # if not self._cli_follow_tf.wait_for_server(timeout_sec=self._timeout_sec):
+        #     self.get_logger().error("No action server available")
+        #     return
+        # sec = np.floor(run_time)
+        # nanosec = (run_time - sec)*10**9
+        # goal = FollowTf.Goal(distance=distance, height=height, approach_angle=approach_angle, target_frame=target_frame, run_time=Duration(sec=int(sec), nanosec=int(nanosec)))
+        # self.get_logger().info("Sending goal to `follow_tf`")
+        # future = self._cli_follow_tf.send_goal_async(goal, feedback_callback=self._feedback_follow_tf)
+        # future.add_done_callback(functools.partial(self._action_response, "follow_tf"))
+        # return future
+        @setup_send_action(self, self._cli_follow_tf, self._feedback_follow_tf)
+        def send_action():
+            sec = np.floor(run_time)
+            nanosec = (run_time - sec)*10**9
+            return FollowTf.Goal(distance=distance, height=height, approach_angle=approach_angle, target_frame=target_frame, run_time=Duration(sec=int(sec), nanosec=int(nanosec)))
+        return send_action
 
     def send_circle_tf(self, radius: float, height: float, loops: float, target_frame: str, run_time: float):
         @setup_send_action(self, self._cli_circle_tf, self._feedback_circle_tf)
