@@ -46,6 +46,7 @@ class CommanderShell(Cmd):
             cancel_futures.append(v.cancel_goal_async())
             self.client._goal_handles.pop(k)
         while self.executor._context.ok() and not check_futures_done(cancel_futures) and not self.executor._is_shutdown:
+            print("waiting for cancels to complete")
             self.executor.spin_once()
         print("Finished ^C")
         super().sigint_handler(signum, _)
@@ -67,11 +68,12 @@ class CommanderShell(Cmd):
     _follow_tf_argparser = Cmd2ArgumentParser(description='Sends `follow_tf` action.')
     _follow_tf_argparser.add_argument('distance', type=float, help='distance away from tf (m)')
     _follow_tf_argparser.add_argument('height', type=float, help='height to maintain (m)')
+    _follow_tf_argparser.add_argument('approach_angle', type=float, help='angle to look at tf from in NED (deg)')
     _follow_tf_argparser.add_argument('target_frame', type=str, help='tf target frame')
     _follow_tf_argparser.add_argument('run_time', type=float, help='time to run for (s)')
     @with_argparser(_follow_tf_argparser)
     def do_follow_tf(self, opts):
-        future = self.client.send_follow_tf(opts.distance, opts.height, opts.target_frame, opts.run_time)
+        future = self.client.send_follow_tf(opts.distance, opts.height, opts.approach_angle, opts.target_frame, opts.run_time)
         complete_action_call(self.client, self.executor, future, "follow_tf")
 
     def do_exit(self, args):

@@ -1,5 +1,6 @@
-float64 distance
-float64 height
+float64 distance  # m
+float64 height  # m
+float64 approach_angle  # degrees
 string target_frame
 builtin_interfaces/Duration run_time
 ---

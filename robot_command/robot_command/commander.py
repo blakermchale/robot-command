@@ -11,7 +11,7 @@ from robot_command_interfaces.action import CircleTf, FollowTf
 from geometry_msgs.msg import Twist, Pose
 # General
 import numpy as np
-from ros2_utils import AxesFrame, convert_axes_from_msg
+from ros2_utils import AxesFrame, convert_axes_from_msg, wrap_to_pi
 
 
 class Commander(Node):
@@ -37,7 +37,7 @@ class Commander(Node):
         def get_request(goal) -> FollowTf.Goal:
             return goal.request
         req = get_request(goal)
-        self.get_logger().debug(f"FollowTf: following {req.target_frame} with distance {req.distance}m and height {req.height}m for {req.run_time}s")
+        self.get_logger().debug(f"FollowTf: following {req.target_frame} with distance {req.distance}m, height {req.height}m, and angle {req.approach_angle}deg for {req.run_time}s")
         start_time = self.get_clock().now()
         run_time = Duration.from_msg(req.run_time)
         fail_time = Duration(seconds=10.0)
@@ -55,7 +55,7 @@ class Commander(Node):
                 # upward_angle = np.arcsin(req.height, req.distance)  # Useful if camera has a gimbal and can angle towards the object
                 lateral = np.sqrt(req.distance**2 - req.height**2)
                 # approach_angle = np.arctan2(tf.transform.translation.y, tf.transform.translation.x)
-                approach_angle = 0.0
+                approach_angle = wrap_to_pi(np.deg2rad(req.approach_angle))
                 pose = Pose()
                 pose.position.x = tf.transform.translation.x - np.cos(approach_angle)*lateral
                 pose.position.y = tf.transform.translation.y - np.sin(approach_angle)*lateral
@@ -64,7 +64,6 @@ class Commander(Node):
                 self._pub_cmd_ned.publish(pose)
                 # TODO: maybe use velocity commands and PID that focuses on target position, similar to ignition
                 # from robot_control.utils.pid_position_controller import PIDPositionController
-                # self.get_logger().info(f"lat: {lateral}, tf: {tf.transform}")
             except Exception as e: #possibly tf2.LookupException or tf2.ExtrapolationException
                 self.get_logger().error(f"{str(e)}", throttle_duration_sec=1.0)
                 if self.get_clock().now() - start_fail_time > fail_time:  # exit if error has occurred for fail time length
