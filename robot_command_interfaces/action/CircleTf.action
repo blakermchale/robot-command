@@ -1,5 +1,6 @@
-float64 radius
-float64 height
+float64 radius  # m
+float64 height  # m
+float64 speed   # deg/s
 string target_frame
 builtin_interfaces/Duration run_time
 ---
