@@ -16,8 +16,14 @@ from tf2_ros import TransformListener, Buffer, TransformBroadcaster
 from robot_command_interfaces.action import CircleTf, FollowTf
 from geometry_msgs.msg import Twist, Pose, TransformStamped
 from std_msgs.msg import Header
+from argparse import ArgumentParser
+import argparse
+from enum import IntEnum, auto
 
 
+class MethodType(IntEnum):
+    RAW=0
+    AVERAGE=auto()
 # TODO: add service for adding and removing processors, allow for list to be passed with target frame and method
 class TfProcessor(Node):
     def __init__(self):
@@ -53,12 +59,12 @@ class TfProcessor(Node):
             try:
                 tf = self._tfbuff.lookup_transform(self._source_frame, k, Time())
                 method = self._processors[k]["method"]
-                if method == "raw":
+                if method == MethodType.RAW:
                     self._processors[k]["value"] = tf.transform
                 # elif method == "average":
                 #     self._processors[k]["info"]["count"] += 1
                 else:
-                    self.get_logger().error(f"Method {method} not implemented yet")
+                    self.get_logger().error(f"Method {method.name.lower()} not implemented yet")
                     continue
             except Exception as e: #possibly tf2.LookupException or tf2.ExtrapolationException
                 # self.get_logger().error(f"{str(e)}", throttle_duration_sec=1.0)
@@ -73,22 +79,23 @@ class TfProcessor(Node):
         if tf_list:  # only publish when tf list has been filled
             self._br.sendTransform(tf_list)
 
-    def add_processor(self, target_frame: str, method: str):
+    def add_processor(self, target_frame: str, method: MethodType):
         """Adds processor to map if the target frame is not already being processed. Returns flag indicating success."""
+        method_name = method.name.lower()
         if not self._processors.get(target_frame):
-            output_frame = f"{target_frame}/{method}"
+            output_frame = f"{target_frame}/{method_name}"
             info = {}  # variables specific to the method type
-            if method == "raw":
+            if method == MethodType.RAW:
                 pass
-            elif method == "average":  # needs to track total number of tfs received to average evenly
+            elif method == MethodType.AVERAGE:  # needs to track total number of tfs received to average evenly
                 info = {"count": 0}
             else:
-                self.get_logger().error(f"Method {method} not implemented yet")
+                self.get_logger().error(f"Method {method_name} not implemented yet")
                 return False
             self._processors[target_frame] = {"output_frame": output_frame, "method": method, "value": None, "info": info}
         else:
             return False
-        self.get_logger().info(f"Added processor for target {target_frame} with method {method}")
+        self.get_logger().info(f"Added processor for target {target_frame} with method {method_name}")
         return True
 
     def remove_processor(self, target_frame):
@@ -100,13 +107,25 @@ class TfProcessor(Node):
         return True
 
 
+def pair(s):
+    try:
+        tf_frame, method = map(str, s.split(','))
+        method = MethodType[method.upper()]
+        return (tf_frame, method)
+    except:
+        raise argparse.ArgumentTypeError("Pair must be tf frame and method for processor.")
+
+
 def main(args=None):
     rclpy.init(args=args)
+    parser = ArgumentParser()
+    parser.add_argument('--tf-pair', help="Pair of tf frame and method for processing.", type=pair, nargs="+")
+    args, _ = parser.parse_known_args()
     tf_processor = TfProcessor()
-    # FIXME: don't use hardcoded tuples for frame and method pairs, recieve input from params or args
-    processor_pairs = [(f"{tf_processor._namespace}/darknet/fire_hydrant", "raw")]
-    for p in processor_pairs:
-        tf_processor.add_processor(p[0], p[1])
+    if args.tf_pair:
+        processor_pairs = args.tf_pair
+        for p in processor_pairs:
+            tf_processor.add_processor(p[0], p[1])
     executor = MultiThreadedExecutor()
     rclpy.spin(tf_processor, executor)
 
