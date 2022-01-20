@@ -55,7 +55,8 @@ class Commander(Node):
                 tf = self._tfbuff.lookup_transform("map", req.target_frame, Time())
                 # upward_angle = np.arcsin(req.height, req.distance)  # Useful if camera has a gimbal and can angle towards the object
                 lateral = req.distance
-                approach_angle = wrap_to_pi(np.deg2rad(req.approach_angle))
+                yaw = NpVector4.ros(tf.transform.rotation).yaw
+                approach_angle = wrap_to_pi(np.deg2rad(req.approach_angle) + yaw)
                 pose = Pose()
                 pose.position.x = tf.transform.translation.x - np.cos(approach_angle)*lateral
                 pose.position.y = tf.transform.translation.y - np.sin(approach_angle)*lateral
