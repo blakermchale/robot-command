@@ -27,6 +27,7 @@ setup(
             f'commander = {package_name}.commander:main',
             f'tf_processor = {package_name}.tf_processor:main',
             f'shell = {package_name}.cli.shell:main',
+            f'control_center = {package_name}.control_center:main',
         ],
     },
 )
