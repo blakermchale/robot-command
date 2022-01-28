@@ -1,0 +1,6 @@
+geometry_msgs/Polygon area
+string[] names
+float64 alt
+---
+---
+diagnostic_msgs/KeyValue[] info

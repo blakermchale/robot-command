@@ -15,7 +15,7 @@ class CommanderShell(ClientShell):
     prompt = "> "
     intro = "Welcome to commander shell! Type ? to list commands"
     def __init__(self, name) -> None:
-        super().__init__(name, CommanderClient, persistent_history_file='~/.robot_command/cmd2_history.dat')
+        super().__init__(name, CommanderClient, persistent_history_file='~/.robot_command/commander.dat')
 
     _follow_tf_argparser = Cmd2ArgumentParser(description='Sends `follow_tf` action.')
     _follow_tf_argparser.add_argument('distance', type=float, help='distance away from tf (m)')

@@ -1,38 +1,43 @@
 #!/usr/bin/env python3
 '''
-Commander Client
+ControlCenter Client
 =======================
 
-Commander client to ROS2 actions. Easy action calling.
+ControlCenter client to ROS2 actions. Easy action calling.
 '''
+from typing import List
+
 from rclpy.executors import Executor
 from rclpy.action import ActionClient
 
-from robot_command_interfaces.action import FollowTf, CircleTf
-from builtin_interfaces.msg import Duration
+from robot_command_interfaces.action import SweepSearch
+from geometry_msgs.msg import Polygon, Point32
 
-import functools
 import numpy as np
 from robot_control.cli.common import setup_send_action, NodeClient
 
 
 class ControlCenterClient(NodeClient):
-    def __init__(self, executor: Executor, namespace=None):
-        super().__init__("commander_client", executor, namespace=namespace)
-        # Commander actions
-        self._cli_follow_tf = ActionClient(self, FollowTf, "follow_tf")
-        self._cli_circle_tf = ActionClient(self, CircleTf, "circle_tf")
+    def __init__(self, executor: Executor, namespace=None, log_feedback=True):
+        super().__init__("control_center_client", executor, namespace=namespace)
+        self.log_feedback = log_feedback
+        # Actions
+        self._cli_sweep_search = ActionClient(self, SweepSearch, "sweep_search")
 
-    def send_follow_tf(self, distance: float, height: float, approach_angle: float, target_frame: str, run_time: float):
-        @setup_send_action(self, self._cli_follow_tf, self._feedback_follow_tf)
+    def send_sweep_search(self, poly_points: np.ndarray, names: List[str], alt: float):
+        @setup_send_action(self, self._cli_sweep_search, self._feedback_sweep_search)
         def send_action():
-            sec = np.floor(run_time)
-            nanosec = (run_time - sec)*10**9
-            return FollowTf.Goal(distance=distance, height=height, approach_angle=approach_angle, target_frame=target_frame, run_time=Duration(sec=int(sec), nanosec=int(nanosec)))
+            msg_poly = Polygon()
+            for r in poly_points:
+                msg_poly.points.append(Point32(x=r[0],y=r[1]))
+            return SweepSearch.Goal(area=msg_poly, names=names, alt=alt)
         return send_action
 
     ########################
     ## Feedback Callbacks ##
     ########################
-    def _feedback_follow_tf(self, feedback):
-        self.get_logger().info(f"`follow_tf` feedback: running for {feedback.feedback.time.sec}s", throttle_duration_sec=2.0)
+    def _feedback_sweep_search(self, feedback):
+        self.feedback = feedback.feedback
+        if self.log_feedback:
+            msg = ", ".join([f"{kv.key}: {kv.value}" for kv in feedback.feedback.info])
+            self.get_logger().info(f"`sweep_search` feedback: current vehicle waypoints - {msg}", throttle_duration_sec=2.0)

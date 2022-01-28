@@ -55,13 +55,13 @@ class Commander(Node):
                 tf = self._tfbuff.lookup_transform("map", req.target_frame, Time())
                 # upward_angle = np.arcsin(req.height, req.distance)  # Useful if camera has a gimbal and can angle towards the object
                 lateral = req.distance
-                yaw = NpVector4.ros(tf.transform.rotation).yaw
+                yaw = NpVector4.from_ros(tf.transform.rotation).yaw
                 approach_angle = wrap_to_pi(np.deg2rad(req.approach_angle) + yaw)
                 pose = Pose()
                 pose.position.x = tf.transform.translation.x - np.cos(approach_angle)*lateral
                 pose.position.y = tf.transform.translation.y - np.sin(approach_angle)*lateral
                 pose.position.z = tf.transform.translation.z + req.height
-                pose.orientation = NpVector4.rpy(0.0, 0.0, approach_angle).get_quat_msg()
+                pose.orientation = NpVector4.from_rpy(0.0, 0.0, approach_angle).get_quat_msg()
                 pose = convert_axes_from_msg(pose,AxesFrame.RHAND,AxesFrame.URHAND)
                 self._pub_cmd_ned.publish(pose)
                 # TODO: maybe use velocity commands and PID that focuses on target position, similar to ignition
@@ -112,7 +112,7 @@ class Commander(Node):
                 pose.position.x = tf.transform.translation.x - np.cos(angle)*req.radius
                 pose.position.y = tf.transform.translation.y - np.sin(angle)*req.radius
                 pose.position.z = tf.transform.translation.z + req.height
-                pose.orientation = NpVector4.rpy(0.0, 0.0, angle).get_quat_msg()
+                pose.orientation = NpVector4.from_rpy(0.0, 0.0, angle).get_quat_msg()
                 pose = convert_axes_from_msg(pose,AxesFrame.RHAND,AxesFrame.URHAND)
                 self._pub_cmd_ned.publish(pose)
             except Exception as e: #possibly tf2.LookupException or tf2.ExtrapolationException
