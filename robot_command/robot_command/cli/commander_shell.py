@@ -6,7 +6,7 @@ Shell interface for calling ROS2 actions.
 '''
 import rclpy
 from cmd2 import Cmd2ArgumentParser, with_argparser
-from robot_control.cli.common import complete_action_call, ClientShell
+from ros2_utils.cli import complete_action_call, ClientShell
 from .commander_client import CommanderClient
 from argparse import ArgumentParser
 
@@ -26,7 +26,7 @@ class CommanderShell(ClientShell):
     @with_argparser(_follow_tf_argparser)
     def do_follow_tf(self, opts):
         future = self.client.send_follow_tf(opts.distance, opts.height, opts.approach_angle, opts.target_frame, opts.run_time)
-        complete_action_call(self.client, self.executor, future, "follow_tf")
+        complete_action_call(self.executor, future)
 
     _circle_tf_argparser = Cmd2ArgumentParser(description='Sends `circle_tf` action.')
     _circle_tf_argparser.add_argument('radius', type=float, help='radius of circle (m)')
@@ -37,7 +37,7 @@ class CommanderShell(ClientShell):
     @with_argparser(_circle_tf_argparser)
     def do_circle_tf(self, opts):
         future = self.client.send_circle_tf(opts.radius, opts.height, opts.speed, opts.target_frame, opts.run_time)
-        complete_action_call(self.client, self.executor, future, "circle_tf")
+        complete_action_call(self.executor, future)
 
 
 def main(args=None):

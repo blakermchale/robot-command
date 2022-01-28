@@ -20,7 +20,7 @@ from ros2_utils import NpVector4, NpPose
 import functools
 from ros2_utils.ros import convert_axes_from_msg, AxesFrame
 from robot_control.cli.drone_client import DroneClient
-from robot_control.cli.common import gh_state_machine, CompleteActionState
+from ros2_utils.cli import gh_state_machine, CompleteActionState
 
 
 def convert_shapely_to_msg(polygon: SPolygon, alt=1.0) -> Polygon:

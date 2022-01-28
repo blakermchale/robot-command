@@ -6,7 +6,7 @@ Shell interface for calling ROS2 actions of ControlCenter.
 '''
 import rclpy
 from cmd2 import Cmd2ArgumentParser, with_argparser
-from robot_control.cli.common import complete_action_call, ClientShell
+from ros2_utils.cli import complete_action_call, ClientShell
 from .control_center_client import ControlCenterClient
 from argparse import ArgumentParser
 import argparse
@@ -39,7 +39,7 @@ class ControlCenterShell(ClientShell):
     @with_argparser(_sweep_search_argparser)
     def do_sweep_search(self, opts):
         future = self.cli.send_sweep_search(opts.poly_points, opts.names, opts.alt)
-        complete_action_call(self.cli, self.executor, future, "sweep_search")
+        complete_action_call(self.executor, future)
 
     @property
     def cli(self) -> ControlCenterClient:

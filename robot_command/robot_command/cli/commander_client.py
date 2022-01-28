@@ -13,7 +13,7 @@ from builtin_interfaces.msg import Duration
 
 import functools
 import numpy as np
-from robot_control.cli.common import setup_send_action, NodeClient
+from ros2_utils.cli import setup_send_action, NodeClient
 
 
 class CommanderClient(NodeClient):

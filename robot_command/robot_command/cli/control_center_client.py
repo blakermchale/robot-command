@@ -14,7 +14,7 @@ from robot_command_interfaces.action import SweepSearch
 from geometry_msgs.msg import Polygon, Point32
 
 import numpy as np
-from robot_control.cli.common import setup_send_action, NodeClient
+from ros2_utils.cli import setup_send_action, NodeClient
 
 
 class ControlCenterClient(NodeClient):
