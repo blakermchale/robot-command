@@ -14,7 +14,7 @@ from robot_command_interfaces.action import SweepSearch
 from geometry_msgs.msg import Polygon, Point32
 
 import numpy as np
-from ros2_utils.cli import setup_send_action, NodeClient
+from ros2_utils.cli import setup_send_action, NodeClient, create_client
 
 
 class ControlCenterClient(NodeClient):
@@ -41,3 +41,11 @@ class ControlCenterClient(NodeClient):
         if self.log_feedback:
             msg = ", ".join([f"{kv.key}: {kv.value}" for kv in feedback.feedback.info])
             self.get_logger().info(f"`sweep_search` feedback: current vehicle waypoints - {msg}", throttle_duration_sec=2.0)
+
+
+# TODO: maybe use partials?
+# create_control_center_client =partial(create_client, ControlCenterClient)
+def create_control_center_client(executor, namespace=None, log_feedback=False) -> ControlCenterClient:
+    client = ControlCenterClient(executor, namespace, log_feedback)
+    executor.add_node(client)
+    return client

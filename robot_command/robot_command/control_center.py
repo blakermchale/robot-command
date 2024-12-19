@@ -4,6 +4,7 @@ from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.action import ActionServer, CancelResponse
 from rclpy.action.client import GoalStatus
+from rclpy.action.server import ServerGoalHandle
 # Interfaces
 from geometry_msgs.msg import PolygonStamped, Polygon, Point32, PoseStamped
 from std_msgs.msg import Header
@@ -19,7 +20,7 @@ from .polygon_path import sweep_polygon
 from ros2_utils import NpVector4, NpPose
 import functools
 from ros2_utils.ros import convert_axes_from_msg, AxesFrame
-from robot_control.cli.drone_client import DroneClient
+from robot_control.cli.drone_client import DroneClient, create_drone_client
 from ros2_utils.cli import gh_state_machine, CompleteActionState
 
 
@@ -65,10 +66,15 @@ class ControlCenter(Node):
         poly_msg.polygon = convert_axes_from_msg(poly_msg.polygon, AxesFrame.URHAND, AxesFrame.RHAND)
         self._pub_search_area.publish(poly_msg)
 
-    def _handle_sweep_search_goal(self, goal):
-        def get_request(goal) -> SweepSearch:
-            return goal.request
-        req = get_request(goal)
+    def _handle_sweep_search_goal(self, goal : ServerGoalHandle):
+        req : SweepSearch.Goal = goal.request
+        # req.area.points = [Point32(x=0.0,y=0.0,z=0.0), Point32(x=30.0,y=-10.0,z=0.0),  Point32(x=23.0,y=27.0,z=0.0),  Point32(x=0.0,y=10.0,z=0.0),  Point32(x=0.0,y=0.0,z=0.0)]
+        # req.names = ["drone_0", "drone_1", "drone_2"]
+        # req.alt = -3.0
+        if not req.names or not req.area.points:
+            self.get_logger().error(f"SweepSearch: not enough points or vehicles to distribute")
+            goal.abort()
+            return SweepSearch.Result()
         names = req.names
         alt = req.alt
         poly = convert_msg_to_shapely(req.area)
@@ -83,15 +89,24 @@ class ControlCenter(Node):
             paths.append(sweep_polygon(r))
             self.get_logger().info(f"SweepSearch: generated sweep for region {i}")
         # Distribute to vehicles and instantiate connections to action API
+        self.get_logger().info(f"SweepSearch: distributing paths to vehicles")
+        # executor = MultiThreadedExecutor()
         for n in names:
             path = paths.pop()
             shape = (path.shape[0],1)
             xyz_yaw_frame = np.hstack((path, alt*np.ones(shape), np.zeros(shape), 1*np.ones(shape)))
             data[n] = {}
-            if n not in self._clients: self._clients[n] = DroneClient(MultiThreadedExecutor(), namespace=n, log_feedback=False)
+            self.get_logger().info(f"SweepSearch:  dddadistributed path to vehicle \"{n}\"")
+            if n not in self._clients: self._clients[n] = create_drone_client(MultiThreadedExecutor(), namespace=n, log_feedback=False)
+            self.get_logger().info(f"SweepSearch:  wow path to vehicle \"{n}\"")
+            # executor.add_node(self._clients[n])
             data[n]["client"] = self._clients[n]
             data[n]["future"] = self._clients[n].send_follow_waypoints(xyz_yaw_frame, 1.0)
             data[n]["state"] = CompleteActionState.WAIT_GH
+            self.get_logger().info(f"SweepSearch: distributed path to vehicle \"{n}\"")
+        #     break
+        # goal.succeed()
+        # return SweepSearch.Result()
         # Wait for results
         self.get_logger().info(f"SweepSearch: waiting on goal handle")
         wait_names = names.copy()
