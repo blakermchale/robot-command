@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-from rclpy.executors import MultiThreadedExecutor
+from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor
 from rclpy.action import ActionServer, CancelResponse
 from rclpy.action.client import GoalStatus
+from rclpy.action.server import ServerGoalHandle
 # Interfaces
 from geometry_msgs.msg import PolygonStamped, Polygon, Point32, PoseStamped
 from std_msgs.msg import Header
@@ -19,7 +20,7 @@ from .polygon_path import sweep_polygon
 from ros2_utils import NpVector4, NpPose
 import functools
 from ros2_utils.ros import convert_axes_from_msg, AxesFrame
-from robot_control.cli.drone_client import DroneClient
+from robot_control.cli.drone_client import DroneClient, create_drone_client
 from ros2_utils.cli import gh_state_machine, CompleteActionState
 
 
@@ -47,8 +48,6 @@ class ControlCenter(Node):
         timer_period = 1/20  # seconds
         self._timer_update = self.create_timer(timer_period, self.update)
         self._check_rate = self.create_rate(20)  # Rate to check conditions in actions
-        # Internals
-        self._clients = {}
         # Publishers
         self._pub_search_area = self.create_publisher(PolygonStamped, "search/area", 1)
         self._search_area = SPolygon([[10, 10], [40, 0], [60,20], [20, 50], [0, 30], [10, 10]])
@@ -65,10 +64,16 @@ class ControlCenter(Node):
         poly_msg.polygon = convert_axes_from_msg(poly_msg.polygon, AxesFrame.URHAND, AxesFrame.RHAND)
         self._pub_search_area.publish(poly_msg)
 
-    def _handle_sweep_search_goal(self, goal):
-        def get_request(goal) -> SweepSearch:
-            return goal.request
-        req = get_request(goal)
+    async def _handle_sweep_search_goal(self, goal : ServerGoalHandle):
+        result = SweepSearch.Result()
+        req : SweepSearch.Goal = goal.request
+        # req.area.points = [Point32(x=0.0,y=0.0,z=0.0), Point32(x=30.0,y=-10.0,z=0.0),  Point32(x=23.0,y=27.0,z=0.0),  Point32(x=0.0,y=10.0,z=0.0),  Point32(x=0.0,y=0.0,z=0.0)]
+        # req.names = ["drone_0", "drone_1", "drone_2"]
+        # req.alt = -3.0
+        if not req.names or not req.area.points:
+            self.get_logger().error(f"SweepSearch: not enough points or vehicles to distribute")
+            goal.abort()
+            return SweepSearch.Result()
         names = req.names
         alt = req.alt
         poly = convert_msg_to_shapely(req.area)
@@ -82,16 +87,25 @@ class ControlCenter(Node):
         for i, r in enumerate(regions.geoms):
             paths.append(sweep_polygon(r))
             self.get_logger().info(f"SweepSearch: generated sweep for region {i}")
+        # Connecting clients
+        self.get_logger().info(f"SweepSearch: Connecting to clients...")
+        clients = {}
+        executor = SingleThreadedExecutor()
+        for n in names:
+            data[n] = {"future": None, "state": CompleteActionState.END}
+            clients[n] = DroneClient(executor, namespace=n, log_feedback=False)
+            self.get_logger().info(f"SweepSearch: connected to \"{n}\"")
         # Distribute to vehicles and instantiate connections to action API
+        self.get_logger().info(f"SweepSearch: distributing paths to vehicles")
         for n in names:
             path = paths.pop()
             shape = (path.shape[0],1)
             xyz_yaw_frame = np.hstack((path, alt*np.ones(shape), np.zeros(shape), 1*np.ones(shape)))
             data[n] = {}
-            if n not in self._clients: self._clients[n] = DroneClient(MultiThreadedExecutor(), namespace=n, log_feedback=False)
-            data[n]["client"] = self._clients[n]
-            data[n]["future"] = self._clients[n].send_follow_waypoints(xyz_yaw_frame, 1.0)
+            drone_client : DroneClient = clients[n]
+            data[n]["future"] = drone_client.send_follow_waypoints(xyz_yaw_frame, 1.0)
             data[n]["state"] = CompleteActionState.WAIT_GH
+            self.get_logger().info(f"SweepSearch: distributed path to vehicle \"{n}\"")
         # Wait for results
         self.get_logger().info(f"SweepSearch: waiting on goal handle")
         wait_names = names.copy()
@@ -99,7 +113,7 @@ class ControlCenter(Node):
         while True:
             feedback = SweepSearch.Feedback()
             for n in names:
-                if self._clients[n].feedback: feedback.info.append(KeyValue(key=n, value=str(self._clients[n].feedback.idx)))
+                if clients[n].feedback: feedback.info.append(KeyValue(key=n, value=str(clients[n].feedback.idx)))
             goal.publish_feedback(feedback)
             # Can only cancel when goal handle result has not been retrieved
             if goal.is_cancel_requested and group_state in [CompleteActionState.WAIT_GH, CompleteActionState.WAIT_GH_FUTURE]:  # Can't cancel until goal handles are received
@@ -110,17 +124,17 @@ class ControlCenter(Node):
                     if not data[n]["cancel_future"].done(): cancel_response = False
                 if not cancel_response:
                     for n in names:
-                        self._clients[n].executor.spin_once()
+                        clients[n].executor.spin_once()
                     continue  # skip stepping forward in stages until cancel gets a response
             # Consider it canceled when all action clients have returned a result
             if goal.is_cancel_requested and group_state == CompleteActionState.CHECK_STATUS:
                 group_state = CompleteActionState.CANCELED
                 self.get_logger().info("SweepSearch: Cancelled!")
                 goal.canceled()
-                return SweepSearch.Result()
+                return result
             # Step goal handles through stages until a result is found
             for n in wait_names:
-                self._clients[n].executor.spin_once()
+                clients[n].executor.spin_once()
                 data[n]["state"] = gh_state_machine(data[n])
             if wait_names:
                 for n in wait_names:
@@ -137,9 +151,9 @@ class ControlCenter(Node):
                 self.get_logger().info(f"SweepSearch: moving to next stage {data[n]['state'].name}")
                 if group_state+1 < CompleteActionState.END: wait_names = names.copy()
                 group_state = CompleteActionState(group_state+1)
-        self.get_logger().info("SweepSearch: searched area!")
         goal.succeed()
-        return SweepSearch.Result()
+        self.get_logger().info("SweepSearch: searched area!")
+        return result
 
     def _handle_sweep_search_cancel(self, cancel):
         return CancelResponse.ACCEPT

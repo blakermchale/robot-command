@@ -6,7 +6,8 @@ import numpy as np
 def optimal_sweep_angle(poly, coords, show_plot=False):
     """Finds optimal sweep angle to reduce the amount of total turns in the sweep path. This reduces energy wasted."""
     og_miny_idx = coords[:,1].argmin()
-    origin_vtx = get_lowest_pair(coords)
+    origin_vtx, origin_idx = get_lowest_pair(coords)
+    # print(origin_vtx)
     poly = affinity.translate(poly, -origin_vtx[0], -origin_vtx[1])
     origin_vtx = np.asfarray([0.0,0.0])
     og_vtx = origin_vtx
@@ -28,7 +29,7 @@ def optimal_sweep_angle(poly, coords, show_plot=False):
         ax.plot(*poly.exterior.xy)
     while True:
         rot_coords = np.asfarray(rotated_poly.exterior.coords)
-        filt_coords = np.delete(rot_coords, origin_vtx,axis=0)
+        filt_coords = np.delete(rot_coords, origin_idx, axis=0)
         filt_coords = filt_coords[filt_coords[:,0]>origin_vtx[0],:]  # only take vertices to the right since the polygon is rolled right
         dang = dang_max
         if len(filt_coords):  # skip if origin is the furthest right
@@ -36,6 +37,7 @@ def optimal_sweep_angle(poly, coords, show_plot=False):
             miny = filt_coords[miny_idx,1]
             if np.isclose(miny, origin_vtx[1], atol=0.001):
                 origin_vtx = filt_coords[miny_idx,:]
+                origin_idx = miny_idx
             if miny <= 0.5 and miny > 0.0:
                 dang = np.pi/100000
         rotated_poly = affinity.rotate(rotated_poly, -dang, origin=origin_vtx, use_radians=True)
@@ -46,7 +48,7 @@ def optimal_sweep_angle(poly, coords, show_plot=False):
             opt_angle = curr_angle
         shift = og_vtx - np.asfarray(rotated_poly.exterior.coords)[og_miny_idx,:]
         translated_poly = affinity.translate(rotated_poly, shift[0], shift[1])
-        if poly.almost_equals(translated_poly, decimal=1):
+        if poly.equals_exact(translated_poly, 0.5 * 10 ** (-1)):
             break
         if show_plot and plt_cnt % 10 == 0:
             plt.cla()
@@ -75,9 +77,10 @@ def get_lowest_pair(pairs):
     coords_miny = pairs[miny,:]
     if coords_miny.ndim == 1:
         lowest_vtx = coords_miny
+        lowest_idx = [miny, ]
     else:
         lowest_vtx = coords_miny[coords_miny[:,0].argmin(),:]
-    return lowest_vtx
+    return lowest_vtx, lowest_idx
 
 
 def sweep_polygon(poly: Polygon, separation:float=2.0, start_left=False):
@@ -141,7 +144,8 @@ def plot_path_on_poly(poly, path, ax=None, show=True):
 def main():
     import matplotlib.pyplot as plt
     from robot_command.split_polygon import split_polygon_voronoi, plot_geom_collection
-    poly = Polygon([[10, 10], [40, 0], [60,20], [20, 50], [0, 30], [10, 10]])
+    # poly = Polygon([[10, 10], [40, 0], [60,20], [20, 50], [0, 30], [10, 10]])
+    poly = Polygon([[0,0], [30,-10], [23,27], [0,10], [0,0]])
     regions = split_polygon_voronoi(poly, 3)
     for r in regions.geoms:
         path = sweep_polygon(r)
