@@ -40,7 +40,7 @@ def optimal_sweep_angle(poly, coords, show_plot=False):
                 origin_idx = miny_idx
             if miny <= 0.5 and miny > 0.0:
                 dang = np.pi/100000
-        rotated_poly = affinity.rotate(rotated_poly, -dang, origin=origin_vtx, use_radians=True)
+        rotated_poly = affinity.rotate(rotated_poly, -dang, origin=list(origin_vtx), use_radians=True)
         d = max(rotated_poly.exterior.coords.xy[1])
         curr_angle += dang
         if d < min_d:
@@ -118,7 +118,7 @@ def sweep_polygon(poly: Polygon, separation:float=2.0, start_left=False):
     flipped = start_left
     path = np.empty((0,2))
     for l in og_lines.geoms:
-        l_np = np.asfarray(l)
+        l_np = np.asfarray(l.coords)
         if flipped: l_np = np.flip(l_np, axis=0)
         l_dist = np.linalg.norm(l_np[1,:]-l_np[0,:])
         stops = int(np.ceil(l_dist/sw_i))
